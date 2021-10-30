@@ -87,7 +87,7 @@ def build_result(content, user_path):
 
 @bot.message_handler(commands = ['admin'])
 def Admin_command(message):
-    bot.send_message(message.chat.id, "Yes my lord?")
+    bot.send_message(message.chat.id, "Yes sir?")
     container[message.from_user.id][0] = "Admin"
 
 @bot.message_handler(commands = ['contest'])
