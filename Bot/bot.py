@@ -5,7 +5,7 @@ import os
 import tempfile
 from lib.path import Path
 
-token = ''#SET YOUR TOKEN HERE
+token = '' #SET YOUR TOKEN HERE
 emoji = '\U00002714'
 mode = "Normal"
 start_text = 'Hello, this is bot which tests your work.\n To start as student send me /contest <id_of_contest>.\n'+"After that send me your code file and i'll process it and tell if there any plagiarism.\n"+"To start as teacher send me some secret command.\nTo check your current mode and contest send me /info\n"
@@ -97,13 +97,13 @@ def contest_command(message):
     cntn = message.text[9:]
     if(mode == "Normal"):
         if(container[message.from_user.id][1].set_cnt(cntn)):
-            bot.send_message(message.chat.id, f"You working in:{cntn} contest now. Waiting for your work")
+            bot.send_message(message.chat.id, f"You're working in: {cntn} contest now. Waiting for your work")
             container[message.from_user.id][0] = "Normal"
         else: 
             bot.send_message(message.chat.id, "There is no contest with such name")
     if(mode == "Admin"):
         container[message.from_user.id][1].set_cnt(cntn)
-        bot.send_message(message.chat.id, f"You are now working with contest {message.text[9:]}")
+        bot.send_message(message.chat.id, f"You are now working with contest: {message.text[9:]}")
 
 @bot.message_handler(commands = ['start'])
 def starting_command(message):
