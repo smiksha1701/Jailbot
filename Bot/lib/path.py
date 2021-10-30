@@ -4,7 +4,7 @@ class Path():
         self.PATH = path
         self.BACKUP =  os.path.join(self.PATH,"backup")
         self.cur_PATH = path
-        self.cntn=''
+        self.cntn = ''
     def restore(self):
         try:
             with open(self.BACKUP,'r')as f:
