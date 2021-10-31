@@ -7,6 +7,7 @@ class Path():
         self.cur_path = path
         self.cntn = ''
     def set_contest_by_path(self, contest_path):
+        self.cntn = contest_path.split('/').pop()[8:]
         self.cur_path = contest_path
         self.cur_Contest_path = ContestPath(contest_path)
         self.cur_Contest_path.ess_cntd()

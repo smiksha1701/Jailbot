@@ -66,6 +66,88 @@ def step(step):
         return aux
     return decorator
 
+def get_fcontent(fname: str) -> str:
+    with open(fname, 'r') as f:
+        result = f.read()
+    return result
+
+def get_result(compiled_name: str, lang: str, test_filepath: str, result_filepath: str) -> str:
+    output_filepath = run(compiled_name, lang, test_filepath, result_filepath)
+    return get_fcontent(output_filepath)
+
+@step("Guessing language")
+def guess_language_from_extension(ext: str) -> str:
+    return  langs.get(ext)
+
+@step("Downloading your file")
+def download_file(file_id, user_id) -> tuple[bytes, str, str]:
+    filepath = bot.get_file(file_id).file_path
+    _, ext = os.path.splitext(filepath)
+    content = bot.download_file(filepath)
+    fd, path = tempfile.mkstemp(ext, f"code.{user_id}.", container[user_id].path.cur_Contest_path.codes_path, True)
+    os.close(fd)
+    with open(path, 'wb') as f:
+        f.write(content)
+    return content, path, ext
+        
+@step("Finding plagiarism")
+def find_best_match(file) -> tuple[str, float]:
+    return db.find_best_match(file)
+
+@step("Compiling your programm")
+def compile_file(lang, path) -> str or None:
+    return compile(lang, path)
+
+
+@step("Getting content")
+def get_content(file_id):
+    filepath = bot.get_file(file_id).file_path
+    return bot.download_file(filepath).decode()
+
+@step("Building test file")
+def build_test(content, user_path):
+    ntests = len(os.listdir(user_path.cur_Contest_path.tests_path))
+    with open(user_path.cur_Contest_path.cur_smth_path('test', ntests), 'w') as f:
+        f.write(content)
+
+@step("Building result file")
+def build_result(content, user_path):
+    nresults = len(os.listdir(user_path.cur_Contest_path.results_path))
+    with open(user_path.cur_Contest_path.cur_smth_path('answer', nresults), 'w') as f:
+        f.write(content)
+
+@bot.message_handler(commands = ['help'])
+def help_command(message):
+    bot.send_message(message.chat.id, )
+@bot.message_handler(commands = ['info'])
+def info_command(message):
+    mode = container[message.from_user.id].mode
+    cntn = container[message.from_user.id].path.cntn
+
+    if(cntn == ""): cntn = "None"
+    bot.send_message(message.chat.id, f"Your mode is: {mode}\nYou are working in: {cntn}")
+
+@bot.message_handler(commands = ['clear'])
+def clear_command(message):
+
+    if (container[message.from_user.id].mode == modes[1]):
+        bot.send_message(message.chat.id, "DB is cleared")
+        db.empty()
+
+    else:
+        bot.send_message(message.chat.id, "Hey, you don't have enough rights to use this command!")
+
+@bot.message_handler(commands = ['add_test'])
+def add_test(message):
+    cur_user = container[message.from_user.id]
+    if (cur_user.mode == modes[1]): 
+        cur_user.mode = modes[2]
+        cur_user.backup()
+        bot.send_message(message.chat.id, "Now send me test file")
+
+    else:
+        bot.send_message(message.chat.id, "Hey, you don't have enough rights to use this command!")
+
 @step("Creating homework directory")
 def create_directory(path) -> None:
     os.mkdir(path.cur_Contest_path.PATH)
@@ -110,12 +192,11 @@ def Admin_command(message):
 @bot.message_handler(commands = ['contest'])
 def contest_command(message):
     if(message.from_user.id in container):
-        print("hello")
         cur_user = container[message.from_user.id]
         mode = cur_user.mode
         cntn = message.text[9:]
 
-        if(mode == "normal"):
+        if(mode == modes[0]):
             if(cur_user.set_cnt(cntn)):
                 bot.send_message(message.chat.id, f"You're working in: {cntn} contest now. Waiting for your work")
                 cur_user.mode = modes[0]
@@ -124,7 +205,7 @@ def contest_command(message):
             else: 
                 bot.send_message(message.chat.id, "There is no contest with such name")
 
-        if(mode == "admin"):
+        if(mode == modes[1]):
             cur_user.set_cnt(cntn)
             bot.send_message(message.chat.id, f"You are now working with contest: {message.text[9:]}")
     else: 
@@ -140,7 +221,6 @@ def load_text(message):
             bot.send_message(message.chat.id, "Awaiting your commands sir")
             cur_user.mode = modes[1]
             cur_user.backup()
-            print("hello")
         else: 
             bot.send_message(message.chat.id, "Nice try")
             cur_user.mode = modes[0]
@@ -148,102 +228,12 @@ def load_text(message):
     else:
         bot.send_message(message.chat.id, "Use /info command to see FAQ")
 
-if __name__=='__main__':
-    troubles, USER = restore(BACKUP)
-    if not any(troubles.major_occured):
-        container[USER.id] = USER
-        for i in troubles.minor_occured:
-            bot.send_message(USER.id, i)
-    bot.polling()
-
-
-#Decorator function  
-"""
-def get_fcontent(fname: str) -> str:
-    with open(fname, 'r') as f:
-        result = f.read()
-    return result
-
-def get_result(compiled_name: str, lang: str, test_filepath: str, result_filepath: str) -> str:
-    output_filepath = run(compiled_name, lang, test_filepath, result_filepath)
-    return get_fcontent(output_filepath)
-
-@step("Guessing language")
-def guess_language_from_extension(ext: str) -> str:
-    return  langs.get(ext)
-
-@step("Downloading your file")
-def download_file(file_id, user_id) -> tuple(bytes, str, str):
-    filepath = bot.get_file(file_id).file_path
-    _, ext = os.path.splitext(filepath)
-    content = bot.download_file(filepath)
-    fd, path = tempfile.mkstemp(ext, f"code.{user_id}.", container[user_id][1].cur_PATH.codes_path, True)
-    os.close(fd)
-    with open(path, 'wb') as f:
-        f.write(content)
-    return content, path, ext
-        
-@step("Finding plagiarism")
-def find_best_match(file) -> tuple(str, float):
-    return db.find_best_match(file)
-
-@step("Compiling your programm")
-def compile_file(lang, path) -> str or None:
-    return compile(lang, path)
-
-
-@step("Getting content")
-def get_content(file_id):
-    filepath = bot.get_file(file_id).file_path
-    return bot.download_file(filepath).decode()
-
-@step("Building test file")
-def build_test(content, user_path):
-    ntests = len(os.listdir(user_path.cur_PATH.tests_path))
-    with open(user_path.cur_PATH.cur_smth_path('test', ntests), 'w') as f:
-        f.write(content)
-
-@step("Building result file")
-def build_result(content, user_path):
-    nresults = len(os.listdir(user_path.cur_PATH.results_path))
-    with open(user_path.cur_PATH.cur_smth_path('answer', nresults), 'w') as f:
-        f.write(content)
-
-@bot.message_handler(commands = ['info'])
-def help_command(message):
-    mode = container[message.from_user.id][0]
-    cntn = container[message.from_user.id][1].cntn
-
-    if(cntn == ""): cntn = "None"
-    bot.send_message(message.chat.id, f"Your mode is: {mode}\nYou are working in: {cntn}")
-
-@bot.message_handler(commands = ['clear'])
-def clear_command(message):
-
-    if (container[message.from_user.id][0] == "Admin"):
-        bot.send_message(message.chat.id, "DB is cleared")
-        db.empty()
-
-    else:
-        bot.send_message(message.chat.id, "Hey, you don't have enough rights to use this command!")
-
-@bot.message_handler(commands = ['add_test'])
-def add_test(message):
-
-    if (container[message.from_user.id][0] == "Admin"): 
-        container[message.from_user.id][0] = "await_test"
-        bot.send_message(message.chat.id, "BOT NOW IN AWAITING TEST MODE")
-
-    else:
-        bot.send_message(message.chat.id, "Hey, you don't have enough rights to use this command!")
-
-
 @bot.message_handler(content_types = ['document'])
 def load_file(message):
-    mode = container[message.from_user.id][0]
-    user_path = container[message.from_user.id][1]
+    mode = container[message.from_user.id].mode
+    user_path = container[message.from_user.id].path
 
-    if(mode ==  "Normal"):
+    if(mode ==  modes[0]):
         my_msg = bot.send_message(message.chat.id, text =  "I've got your document\n")
         
         [content, fpath, ext] =  download_file(my_msg, message.document.file_id, message.from_user.id)
@@ -261,13 +251,13 @@ def load_file(message):
         if(not compiled_name):
             bot.send_message(message.chat.id, "Could not compile your file")
             return 
-        ntests = len(os.listdir(user_path.cur_PATH.tests_path))
+        ntests = len(os.listdir(user_path.cur_Contest_path.tests_path))
         bot.edit_message_text("Getting results", my_msg.chat.id, my_msg.message_id)
 
         for i in range (ntests):
-            cur_test_path = user_path.cur_PATH.cur_smth_path('test', i)
-            cur_result_path = user_path.cur_PATH.cur_smth_path('result', i)
-            cur_answer_path = user_path.cur_PATH.cur_smth_path('answer', i)
+            cur_test_path = user_path.cur_Contest_path.cur_smth_path('test', i)
+            cur_result_path = user_path.cur_Contest_path.cur_smth_path('result', i)
+            cur_answer_path = user_path.cur_Contest_path.cur_smth_path('answer', i)
             result = get_result(compiled_name, lang, cur_test_path, cur_result_path)
             true_result = get_fcontent(cur_answer_path)
 
@@ -284,21 +274,30 @@ def load_file(message):
         bot.delete_message(my_msg.chat.id, my_msg.id)
         bot.send_message(message.chat.id, "Your file is completely processed")
 
-    elif(mode ==  "await_test"):
+    elif(mode ==  modes[2]):
         my_msg = bot.send_message(message.chat.id, text =  "I've got your test\n")
         content =  get_content(my_msg, message.document.file_id)
         build_test(my_msg, content, user_path)
-        container[message.from_user.id][0] = "await_result"
-        bot.send_message(message.chat.id, "BOT NOW IN AWAITING RESULT MODE")
-        bot.send_message(message.chat.id, "Your file is completely processed")
+        container[message.from_user.id].mode = modes[3]
+        container[message.from_user.id].backup()
+        bot.edit_message_text("Your file is completely processed", my_msg.chat.id, my_msg.id)
+        bot.send_message(message.chat.id, "Now send me result of test ")
 
-    elif(mode ==  "await_result"):
+    elif(mode ==  modes[3]):
         my_msg = bot.send_message(message.chat.id, text =  "I've got your result\n")
         content = get_content(my_msg , message.document.file_id)
         build_result(my_msg, content, user_path)
-        container[message.from_user.id][0] = "Admin"
-        bot.send_message(message.chat.id, "Your file is completely processed")
+        container[message.from_user.id].mode = modes[1]
+        container[message.from_user.id].backup()
+        bot.edit_message_text("Your file is completely processed", my_msg.chat.id, my_msg.id)
 
-    elif(mode ==  "Select"):
-        bot.send_message(message.chat.id, "Pls choose your mode")
-"""
+if __name__=='__main__':
+    troubles, USER = restore(BACKUP)
+    if not any(troubles.major_occured):
+        container[USER.id] = USER
+        for i in troubles.minor_occured:
+            bot.send_message(USER.id, i)
+    bot.polling()
+
+
+#Decorator function  

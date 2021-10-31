@@ -1,3 +1,4 @@
+from lib.compile import run
 from lib.path import Path
 class User():
     def __init__(self, PATH):
@@ -17,4 +18,5 @@ class User():
     def set_cnt(self, contest_name):
         if(self.path.set_contest_by_name(contest_name)):
             self.backup()
-        
+            return True
+        return False
