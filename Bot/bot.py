@@ -6,7 +6,7 @@ import tempfile
 from lib.User import User
 from lib.Troubleshooting import RestoreTroubles
 
-TOKEN = '866320791:AAHv5sib00swuh8Y_ZQbaRVpVlFPzOFtT6o' #SET YOUR TOKEN HERE
+TOKEN = '' #SET YOUR TOKEN HERE
 PASSWORD = "HP"
 modes = ["normal", "admin", "await_test", "await_result", "await_password"]
 emoji = '\U00002714'
