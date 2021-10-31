@@ -3,47 +3,35 @@ class Path():
     def __init__(self, path):
         self.PATH = path
         self.BACKUP =  os.path.join(self.PATH,"backup")
-        self.cur_PATH = path
+        self.cur_Contest_path = None
+        self.cur_path = path
         self.cntn = ''
-    def restore(self):
-        try:
-            with open(self.BACKUP,'r')as f:
-                BUI = f.readline()[:-1]
-                creator = f.readline()
-            if BUI != '' and creator != '':
-                if(self.check_path(BUI)):
-                    self.cur_PATH = ContestPath(BUI)
-                    self.cur_PATH.ess_cntd()
-                    return True, 0
-                else: 
-                    return False, int(creator)
-        except: return False, None
-        finally: return False, None
+    def set_contest_by_path(self, contest_path):
+        self.cur_path = contest_path
+        self.cur_Contest_path = ContestPath(contest_path)
+        self.cur_Contest_path.ess_cntd()
     @staticmethod
     def check_path(path):
         return os.path.isdir(path)
 
     def get_cnt_path(self, cnt):
         return os.path.join(self.PATH,f'Contest_{cnt}')
-    def new_cnt_paths(self, cntn, creator):
-        self.cntn = cntn
-        new_cntp = self.get_cnt_path(cntn)
+    def new_cnt_paths(self, cntname):
+        self.cntn = cntname
+        new_cntp = self.get_cnt_path(cntname)
         if(self.check_path(new_cntp)):
             return False
-        with open(self.BACKUP,'w') as f:
-            f.write(new_cntp)
-            f.write(f'\n{creator}')
-        self.cur_PATH = ContestPath(new_cntp)
-        self.cur_PATH.ess_cntd()
+        self.cur_Contest_path = ContestPath(new_cntp)
+        self.cur_Contest_path.ess_cntd()
+        self.cur_path = new_cntp
         return True
 
-    def set_cnt(self, cntn):
+    def set_contest_by_name(self, cntn):
         self.cntn = cntn
         new_cntp = self.get_cnt_path(cntn)
         if(not self.check_path(new_cntp)):
             return False
-        self.cur_PATH = ContestPath(new_cntp)
-        self.cur_PATH.ess_cntd()
+        self.set_contest_by_path(new_cntp)
         return True
 class ContestPath(Path):
     def ess_cntd(self):

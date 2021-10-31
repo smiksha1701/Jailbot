@@ -3,22 +3,59 @@ import lib.database as DataBase
 from lib.compile import run, compile
 import os
 import tempfile
-from lib.path import Path
+from lib.User import User
+from lib.Troubleshooting import RestoreTroubles
 
-token = '' #SET YOUR TOKEN HERE
+TOKEN = '866320791:AAHv5sib00swuh8Y_ZQbaRVpVlFPzOFtT6o' #SET YOUR TOKEN HERE
+PASSWORD = "HP"
+modes = ["normal", "admin", "await_test", "await_result", "await_password"]
 emoji = '\U00002714'
-mode = "Normal"
 start_text = 'Hello, this is bot which tests your work.\n To start as student send me /contest <id_of_contest>.\n'+"After that send me your code file and i'll process it and tell if there any plagiarism.\n"+"To start as teacher send me some secret command.\nTo check your current mode and contest send me /info\n"
 container = {}
 langs = {".cc": "cpp", ".cpp": "cpp", ".hpp": "cpp", ".h": "cpp", ".txt": "text"}
 db = DataBase.Data()
-bot = telebot.TeleBot(token)
-paths = Path(os.path.abspath(os.getcwd()))
-exist, directory_creator = paths.restore()
-container[directory_creator] = [mode, paths]
-if(not exist):
-    if(directory_creator):
-        bot.send_message(directory_creator, "Your directory is deleted. Pls create a new one")
+troubleshoot = [] 
+bot = telebot.TeleBot(TOKEN)
+PATH = os.path.abspath(os.getcwd())
+BACKUP = os.path.join(PATH, 'backup')
+
+def restore(BACKUP: os.path) -> tuple[RestoreTroubles, User]:
+    user = User(PATH)
+    troubleshoot = RestoreTroubles()
+    try:
+        with open(BACKUP, 'r')as f:
+            last_path = f.readline()[:-1]
+            id = f.readline()[:-1]
+            mode = f.readline()
+
+        if id != '':
+            user.id = int(id)
+        else:
+            troubleshoot.add_major_troubles(1)
+            return troubleshoot, user
+        if mode != '':
+            if(mode not in modes):
+                user.mode = modes[0]
+                troubleshoot.add_minor_troubles(1)
+            else:
+                user.mode = mode
+        else:
+            user.mode = modes[0]
+            troubleshoot.add_minor_troubles(2)
+
+        if  last_path != '' :
+            if(user.path.check_path(last_path)):
+                user.path.set_contest_by_path(last_path)
+
+            else: 
+                troubleshoot.add_minor_troubles(3)
+
+        else: troubleshoot.add_minor_troubles(4)
+
+    except:
+        troubleshoot.add_major_troubles(0) 
+        return troubleshoot, user
+    return troubleshoot, user
 
 def step(step):
     def decorator(func):
@@ -29,21 +66,114 @@ def step(step):
         return aux
     return decorator
 
-def get_fcontent(fname):
+@step("Creating homework directory")
+def create_directory(path) -> None:
+    os.mkdir(path.cur_Contest_path.PATH)
+    os.mkdir(path.cur_Contest_path.tests_path)
+    os.mkdir(path.cur_Contest_path.answers_path)
+    os.mkdir(path.cur_Contest_path.codes_path)
+    os.mkdir(path.cur_Contest_path.results_path)
+
+@bot.message_handler(commands = ['new_contest'])
+def new_contest(message):
+    if(message.from_user.id in container):
+        cur_user = container[message.from_user.id]
+        if (cur_user.mode ==  modes[1]):
+            msg = bot.send_message(message.chat.id, "Got your command")
+            if(cur_user.path.new_cnt_paths(message.text[13:])):
+                create_directory(msg, cur_user.path)
+                cur_user.backup()
+                bot.edit_message_text("Done", msg.chat.id, msg.id)
+            else: bot.edit_message_text("There is a contest with such name", msg.chat.id, msg.id)
+
+        else:
+            bot.send_message(message.chat.id, "Hey, you don't have enough rights to use this command!")
+    else:
+        bot.send_message(message.chat.id, "Sorry we have lost your status. Please type /start to start again")
+@bot.message_handler(commands = ['start'])
+def starting_command(message):
+    bot.send_message(message.chat.id, start_text)
+    cur_user = User(PATH)
+    cur_user.id = message.from_user.id
+    cur_user.backup()
+    container[cur_user.id] = cur_user
+
+@bot.message_handler(commands = ['admin'])
+def Admin_command(message):
+    if(message.from_user.id in container):
+        bot.send_message(message.chat.id, "Hold on, password please?")
+        container[message.from_user.id].mode = modes[4]
+        container[message.from_user.id].backup()
+    else: 
+        bot.send_message(message.chat.id, "Sorry we have lost your status. Please type /start to start again")
+
+@bot.message_handler(commands = ['contest'])
+def contest_command(message):
+    if(message.from_user.id in container):
+        print("hello")
+        cur_user = container[message.from_user.id]
+        mode = cur_user.mode
+        cntn = message.text[9:]
+
+        if(mode == "normal"):
+            if(cur_user.set_cnt(cntn)):
+                bot.send_message(message.chat.id, f"You're working in: {cntn} contest now. Waiting for your work")
+                cur_user.mode = modes[0]
+                cur_user.backup()
+
+            else: 
+                bot.send_message(message.chat.id, "There is no contest with such name")
+
+        if(mode == "admin"):
+            cur_user.set_cnt(cntn)
+            bot.send_message(message.chat.id, f"You are now working with contest: {message.text[9:]}")
+    else: 
+        bot.send_message(message.chat.id, "Sorry we have lost your status. Please type /start to start again")
+
+@bot.message_handler(content_types = ['text'])
+def load_text(message):
+    cur_user = container[message.from_user.id]
+    mode = cur_user.mode
+    if(mode == modes[4]):
+        password = message.text
+        if password ==  PASSWORD:
+            bot.send_message(message.chat.id, "Awaiting your commands sir")
+            cur_user.mode = modes[1]
+            cur_user.backup()
+            print("hello")
+        else: 
+            bot.send_message(message.chat.id, "Nice try")
+            cur_user.mode = modes[0]
+            cur_user.backup()
+    else:
+        bot.send_message(message.chat.id, "Use /info command to see FAQ")
+
+if __name__=='__main__':
+    troubles, USER = restore(BACKUP)
+    if not any(troubles.major_occured):
+        container[USER.id] = USER
+        for i in troubles.minor_occured:
+            bot.send_message(USER.id, i)
+    bot.polling()
+
+
+#Decorator function  
+"""
+def get_fcontent(fname: str) -> str:
     with open(fname, 'r') as f:
         result = f.read()
     return result
 
-def get_result(compiled_name, lang, test_filepath, result_filepath):
-    output_name = run(compiled_name, lang, test_filepath, result_filepath)
-    return get_fcontent(output_name)
+def get_result(compiled_name: str, lang: str, test_filepath: str, result_filepath: str) -> str:
+    output_filepath = run(compiled_name, lang, test_filepath, result_filepath)
+    return get_fcontent(output_filepath)
 
 @step("Guessing language")
-def guess_language_from_extension(ext):
+def guess_language_from_extension(ext: str) -> str:
     return  langs.get(ext)
 
 @step("Downloading your file")
-def download_file(file_id, user_id):
+def download_file(file_id, user_id) -> tuple(bytes, str, str):
     filepath = bot.get_file(file_id).file_path
     _, ext = os.path.splitext(filepath)
     content = bot.download_file(filepath)
@@ -54,20 +184,13 @@ def download_file(file_id, user_id):
     return content, path, ext
         
 @step("Finding plagiarism")
-def find_best_match(file):
+def find_best_match(file) -> tuple(str, float):
     return db.find_best_match(file)
 
 @step("Compiling your programm")
-def compile_file(lang, path):
+def compile_file(lang, path) -> str or None:
     return compile(lang, path)
 
-@step("Creating homework directory")
-def create_directory():
-    os.mkdir(paths.cur_PATH.PATH)
-    os.mkdir(paths.cur_PATH.tests_path)
-    os.mkdir(paths.cur_PATH.answers_path)
-    os.mkdir(paths.cur_PATH.codes_path)
-    os.mkdir(paths.cur_PATH.results_path)
 
 @step("Getting content")
 def get_content(file_id):
@@ -85,30 +208,6 @@ def build_result(content, user_path):
     nresults = len(os.listdir(user_path.cur_PATH.results_path))
     with open(user_path.cur_PATH.cur_smth_path('answer', nresults), 'w') as f:
         f.write(content)
-
-@bot.message_handler(commands = ['admin'])
-def Admin_command(message):
-    bot.send_message(message.chat.id, "Yes sir?")
-    container[message.from_user.id][0] = "Admin"
-
-@bot.message_handler(commands = ['contest'])
-def contest_command(message):
-    mode = container[message.from_user.id][0]
-    cntn = message.text[9:]
-    if(mode == "Normal"):
-        if(container[message.from_user.id][1].set_cnt(cntn)):
-            bot.send_message(message.chat.id, f"You're working in: {cntn} contest now. Waiting for your work")
-            container[message.from_user.id][0] = "Normal"
-        else: 
-            bot.send_message(message.chat.id, "There is no contest with such name")
-    if(mode == "Admin"):
-        container[message.from_user.id][1].set_cnt(cntn)
-        bot.send_message(message.chat.id, f"You are now working with contest: {message.text[9:]}")
-
-@bot.message_handler(commands = ['start'])
-def starting_command(message):
-    bot.send_message(message.chat.id, start_text)
-    container[message.from_user.id] = [mode, paths]
 
 @bot.message_handler(commands = ['info'])
 def help_command(message):
@@ -132,34 +231,12 @@ def clear_command(message):
 def add_test(message):
 
     if (container[message.from_user.id][0] == "Admin"): 
-        container[message.from_user.id][0] = "Await_test"
+        container[message.from_user.id][0] = "await_test"
         bot.send_message(message.chat.id, "BOT NOW IN AWAITING TEST MODE")
 
     else:
         bot.send_message(message.chat.id, "Hey, you don't have enough rights to use this command!")
 
-@bot.message_handler(commands = ['new_contest'])
-def new_contest(message):
-    mode = container[message.from_user.id][0]
-
-    if (mode ==  "Admin"):
-        msg = bot.send_message(message.chat.id, "Got your command")
-        if(container[message.from_user.id][1].new_cnt_paths(message.text[13:], message.from_user.id)):
-            create_directory(msg)
-            bot.edit_message_text("Done", msg.chat.id, msg.id)
-        else: bot.edit_message_text("There is a contest with such name", msg.chat.id, msg.id)
-
-    else:
-        bot.send_message(message.chat.id, "Hey, you don't have enough rights to use this command!")
-
-""" @bot.message_handler(content_types = ['text'])
-def load_text(message):
-    file = message.text
-    text, score = db.find_best_match(file)
-    if text:
-        bot.send_message(message.chat.id, f"This text {text} is similar by {score}")
-    else:
-        bot.send_message(message.chat.id, "DB is empty :(") """
 
 @bot.message_handler(content_types = ['document'])
 def load_file(message):
@@ -207,15 +284,15 @@ def load_file(message):
         bot.delete_message(my_msg.chat.id, my_msg.id)
         bot.send_message(message.chat.id, "Your file is completely processed")
 
-    elif(mode ==  "Await_test"):
+    elif(mode ==  "await_test"):
         my_msg = bot.send_message(message.chat.id, text =  "I've got your test\n")
         content =  get_content(my_msg, message.document.file_id)
         build_test(my_msg, content, user_path)
-        container[message.from_user.id][0] = "Await_result"
+        container[message.from_user.id][0] = "await_result"
         bot.send_message(message.chat.id, "BOT NOW IN AWAITING RESULT MODE")
         bot.send_message(message.chat.id, "Your file is completely processed")
 
-    elif(mode ==  "Await_result"):
+    elif(mode ==  "await_result"):
         my_msg = bot.send_message(message.chat.id, text =  "I've got your result\n")
         content = get_content(my_msg , message.document.file_id)
         build_result(my_msg, content, user_path)
@@ -224,5 +301,4 @@ def load_file(message):
 
     elif(mode ==  "Select"):
         bot.send_message(message.chat.id, "Pls choose your mode")
-    
-bot.polling()
+"""
